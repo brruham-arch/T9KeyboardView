@@ -31,7 +31,7 @@ class T9InputController(
     private val mtWordBuffer = StringBuilder()
 
     private val handler = Handler(Looper.getMainLooper())
-    private val mtCommitTimer = Runnable { commitMultitap(true) }
+    private val mtCommitTimer = Runnable { finalizeMultitap() }
     private val MT_DELAY = 800L
 
     fun onKeyPressed(digit: Char) {
@@ -43,9 +43,7 @@ class T9InputController(
 
     fun onDigitLong(digit: Char) {
         handler.removeCallbacks(mtCommitTimer)
-        clearComposing()
-        digitSequence = ""
-        mtWordBuffer.clear()
+        clearAll()
         onCommitText(digit.toString())
     }
 
@@ -79,7 +77,7 @@ class T9InputController(
                 if (mtWordBuffer.isNotEmpty()) {
                     mtWordBuffer.deleteCharAt(mtWordBuffer.length - 1)
                     onDeleteChar()
-                    updateMultitapPrediction()
+                    updateMultitapUI()
                 } else {
                     onDeleteChar()
                 }
@@ -110,10 +108,8 @@ class T9InputController(
 
     private fun handlePredictive(digit: Char) {
         digitSequence += digit
-
         val suggestions = engine.predict(digitSequence, lastWord)
         currentSuggestions = suggestions
-
         onSuggestionsChanged(suggestions)
         onSetComposing(suggestions.firstOrNull() ?: digitSequence)
     }
@@ -144,7 +140,7 @@ class T9InputController(
         onSuggestionsChanged(emptyList())
     }
 
-    // ================= MULTITAP (FIXED) =================
+    // ================= MULTITAP (UPDATED CORE) =================
 
     private val lastTapMap = mutableMapOf<Char, Int>()
     private val lastTapTime = mutableMapOf<Char, Long>()
@@ -173,54 +169,57 @@ class T9InputController(
 
         if (sameKey && mtWordBuffer.isNotEmpty()) {
             mtWordBuffer.setCharAt(mtWordBuffer.length - 1, char)
-            onDeleteChar()
-            onCommitText(char.toString())
         } else {
             mtWordBuffer.append(char)
-            onCommitText(char.toString())
         }
 
-        updateMultitapPrediction()
+        updateMultitapUI()
         handler.postDelayed(mtCommitTimer, MT_DELAY)
     }
 
-    private fun updateMultitapPrediction() {
-        val word = mtWordBuffer.toString()
+    private fun updateMultitapUI() {
+        val rawWord = mtWordBuffer.toString()
+        val word = if (isShift) rawWord.replaceFirstChar { it.uppercase() } else rawWord
 
-        if (word.length < 2) {
-            onSuggestionsChanged(emptyList())
-            return
-        }
+        // 🔥 1. tampilkan sebagai composing (bukan commit)
+        onSetComposing(word)
 
-        val fakeDigits = word.map { '2' }.joinToString("")
-        val suggestions = engine.predict(fakeDigits, lastWord)
+        // 🔥 2. ambil prediksi
+        val fakeDigits = rawWord.map { '2' }.joinToString("")
+        val predictions = if (rawWord.length >= 2)
+            engine.predict(fakeDigits, lastWord)
+        else emptyList()
 
-        onSuggestionsChanged(suggestions)
+        // 🔥 3. paksa kata sendiri jadi suggestion pertama
+        val finalSuggestions = mutableListOf<String>()
+        finalSuggestions.add(word)
+        finalSuggestions.addAll(predictions.filter { it != word })
+
+        onSuggestionsChanged(finalSuggestions)
     }
 
     private fun finalizeMultitap() {
-        val word = mtWordBuffer.toString()
+        val rawWord = mtWordBuffer.toString()
+        if (rawWord.isEmpty()) return
 
-        if (word.length >= 1) {
-            val finalWord = if (isShift) word.replaceFirstChar { it.uppercase() } else word
+        clearComposing()
 
-            userStore.recordUsage(finalWord)
-            engine.addWord(finalWord)
+        val finalWord = if (isShift) rawWord.replaceFirstChar { it.uppercase() } else rawWord
+        onCommitText(finalWord)
 
-            if (lastWord.isNotEmpty()) {
-                userStore.recordBigram(lastWord, finalWord)
-            }
+        userStore.recordUsage(finalWord)
+        engine.addWord(finalWord)
 
-            lastWord = finalWord
+        if (lastWord.isNotEmpty()) {
+            userStore.recordBigram(lastWord, finalWord)
         }
+
+        lastWord = finalWord
 
         mtWordBuffer.clear()
         lastTapMap.clear()
         lastTapTime.clear()
-    }
-
-    private fun commitMultitap(auto: Boolean) {
-        if (auto) finalizeMultitap()
+        onSuggestionsChanged(emptyList())
     }
 
     private fun clearComposing() {
