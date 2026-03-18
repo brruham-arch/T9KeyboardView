@@ -34,7 +34,7 @@ class PredictionEngine(
     companion object {
         private const val TAG = "PredictionEngine"
         private const val BOOST        = 150
-        private const val BIGRAM_MULT  = 200   // bigram lebih kuat dari unigram boost
+        private const val BIGRAM_MULT  = 200
         private const val MAX_RESULTS  = 8
         private const val MAX_COLLECT  = 40
     }
@@ -61,11 +61,12 @@ class PredictionEngine(
                 }
             }
             Log.d(TAG, "Dict loaded")
-        } catch (e: Exception) { Log.e(TAG, "Dict fail: ${e.message}") }
+        } catch (e: Exception) {
+            Log.e(TAG, "Dict fail: ${e.message}")
+        }
     }
 
     private fun loadUserWords() {
-        // Load unigram user words ke trie agar bisa ditemukan
         userStore.getAllWords().forEach { (w, h) ->
             if (w.all { it.isLetter() }) insertWord(w, h * BOOST)
         }
@@ -85,24 +86,19 @@ class PredictionEngine(
         if (w.length > 1 && w.all { it.isLetter() }) insertWord(w, BOOST)
     }
 
-    // ── PREDICT ───────────────────────────────────────────────────────────────
+    // ================= T9 PREDICT =================
 
     fun predict(digits: String, prevWord: String = ""): List<String> {
         if (!isReady || digits.isEmpty()) return emptyList()
 
         val scores = HashMap<String, Int>()
 
-        // Layer 1: exact match
         searchExact(root, digits, 0, StringBuilder(), scores)
-
-        // Layer 2: prefix collect
         collectPrefix(digits, scores)
 
-        // Layer 3: fuzzy (1 digit error)
         if (scores.size < 4)
             searchFuzzy(root, digits, 0, StringBuilder(), scores, 1)
 
-        // ── Scoring: unigram + bigram boost ────────────────────────────────
         val bigrams = if (prevWord.isNotBlank())
             userStore.getBigramFollowers(prevWord) else emptyMap()
 
@@ -117,7 +113,35 @@ class PredictionEngine(
             .map { it.first }
     }
 
-    // ── Layer 1 ───────────────────────────────────────────────────────────────
+    // ================= PREFIX (MULTITAP FIX) =================
+
+    fun predictWordPrefix(prefix: String, prevWord: String = ""): List<String> {
+        if (!isReady || prefix.isEmpty()) return emptyList()
+
+        var node = root
+        for (c in prefix.lowercase()) {
+            node = node.children[c] ?: return emptyList()
+        }
+
+        val results = HashMap<String, Int>()
+        collectAll(node, StringBuilder(prefix.lowercase()), results, intArrayOf(0))
+
+        val bigrams = if (prevWord.isNotBlank())
+            userStore.getBigramFollowers(prevWord) else emptyMap()
+
+        return results
+            .map { (word, base) ->
+                val uni    = userStore.getBoost(word) * BOOST
+                val bigram = (bigrams[word] ?: 0) * BIGRAM_MULT
+                word to (base + uni + bigram)
+            }
+            .sortedByDescending { it.second }
+            .take(MAX_RESULTS)
+            .map { it.first }
+    }
+
+    // ================= CORE SEARCH =================
+
     private fun searchExact(node: TrieNode, digits: String, d: Int, cur: StringBuilder, res: MutableMap<String, Int>) {
         if (d == digits.length) {
             if (node.isEnd) res.merge(cur.toString(), node.frequency.coerceAtLeast(1), ::maxOf)
@@ -125,53 +149,73 @@ class PredictionEngine(
         }
         for (c in T9_MAP[digits[d]] ?: return) {
             val ch = node.children[c] ?: continue
-            cur.append(c); searchExact(ch, digits, d + 1, cur, res); cur.deleteCharAt(cur.length - 1)
+            cur.append(c)
+            searchExact(ch, digits, d + 1, cur, res)
+            cur.deleteCharAt(cur.length - 1)
         }
     }
 
-    // ── Layer 2 ───────────────────────────────────────────────────────────────
     private fun collectPrefix(digits: String, res: MutableMap<String, Int>) {
         data class S(val node: TrieNode, val d: Int, val prefix: String)
-        val q = ArrayDeque<S>(); q.add(S(root, 0, ""))
+        val q = ArrayDeque<S>()
+        q.add(S(root, 0, ""))
+
         while (q.isNotEmpty()) {
             val (node, d, prefix) = q.removeFirst()
-            if (d == digits.length) { collectAll(node, StringBuilder(prefix), res, intArrayOf(0)); continue }
+
+            if (d == digits.length) {
+                collectAll(node, StringBuilder(prefix), res, intArrayOf(0))
+                continue
+            }
+
             for (c in T9_MAP[digits[d]] ?: continue) {
-                val ch = node.children[c] ?: continue; q.add(S(ch, d + 1, prefix + c))
+                val ch = node.children[c] ?: continue
+                q.add(S(ch, d + 1, prefix + c))
             }
         }
     }
 
     private fun collectAll(node: TrieNode, cur: StringBuilder, res: MutableMap<String, Int>, cnt: IntArray) {
         if (cnt[0] >= MAX_COLLECT) return
+
         if (node.isEnd) {
             res.merge(cur.toString(), (node.frequency * 0.6).toInt().coerceAtLeast(1), ::maxOf)
             cnt[0]++
         }
-        node.children.entries.sortedByDescending { it.value.frequency }.forEach { (c, ch) ->
-            if (cnt[0] >= MAX_COLLECT) return
-            cur.append(c); collectAll(ch, cur, res, cnt); cur.deleteCharAt(cur.length - 1)
-        }
+
+        node.children.entries
+            .sortedByDescending { it.value.frequency }
+            .forEach { (c, ch) ->
+                if (cnt[0] >= MAX_COLLECT) return
+                cur.append(c)
+                collectAll(ch, cur, res, cnt)
+                cur.deleteCharAt(cur.length - 1)
+            }
     }
 
-    // ── Layer 3 ───────────────────────────────────────────────────────────────
     private fun searchFuzzy(node: TrieNode, digits: String, d: Int, cur: StringBuilder, res: MutableMap<String, Int>, err: Int) {
         if (d == digits.length) {
             if (node.isEnd) res.merge(cur.toString(), (node.frequency * 0.3).toInt().coerceAtLeast(1), ::maxOf)
             return
         }
-        if (cur.length > digits.length + 1) return
+
         val exact = T9_MAP[digits[d]] ?: ""
+
         for (c in exact) {
             val ch = node.children[c] ?: continue
-            cur.append(c); searchFuzzy(ch, digits, d + 1, cur, res, err); cur.deleteCharAt(cur.length - 1)
+            cur.append(c)
+            searchFuzzy(ch, digits, d + 1, cur, res, err)
+            cur.deleteCharAt(cur.length - 1)
         }
+
         if (err > 0) {
             for (adj in ADJACENT[digits[d]] ?: "") {
                 for (c in T9_MAP[adj] ?: "") {
                     if (c in exact) continue
                     val ch = node.children[c] ?: continue
-                    cur.append(c); searchFuzzy(ch, digits, d + 1, cur, res, err - 1); cur.deleteCharAt(cur.length - 1)
+                    cur.append(c)
+                    searchFuzzy(ch, digits, d + 1, cur, res, err - 1)
+                    cur.deleteCharAt(cur.length - 1)
                 }
             }
         }
@@ -179,37 +223,3 @@ class PredictionEngine(
 
     fun getCharsForKey(digit: Char): String = T9_MAP[digit] ?: ""
 }
-
-    // ================= PREFIX PREDICTION (MULTITAP SUPPORT) =================
-
-    fun predictWordPrefix(prefix: String, lastWord: String): List<String> {
-        if (prefix.isEmpty()) return emptyList()
-
-        val lower = prefix.lowercase()
-
-        val candidates = mutableListOf<String>()
-
-        // ambil dari dictionary utama
-        for (word in dictionary) {
-            if (word.startsWith(lower)) {
-                candidates.add(word)
-            }
-        }
-
-        // ambil dari user words
-        for (word in userWords) {
-            if (word.startsWith(lower)) {
-                candidates.add(word)
-            }
-        }
-
-        // ranking sederhana: panjang + frekuensi
-        return candidates
-            .distinct()
-            .sortedWith(compareByDescending<String> {
-                userStore.getFrequency(it)
-            }.thenBy {
-                it.length
-            })
-            .take(5)
-    }
