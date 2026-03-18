@@ -258,7 +258,7 @@ class T9KeyboardView @JvmOverloads constructor(
                 // Overlay intercept
                 if (overlayVisible) {
                     val ok = overlayKeys.find { it.rect.contains(x, y) }
-                    if (ok?.id == overlayPressedId) {
+                    if (ok != null && ok.id == overlayPressedId) {
                         when (ok.id) {
                             'M' -> keyListener?.onToggleMode()
                             'P' -> keyListener?.onPaste()

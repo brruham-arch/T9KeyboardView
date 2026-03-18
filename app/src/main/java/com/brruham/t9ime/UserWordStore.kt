@@ -19,8 +19,10 @@ class UserWordStore(context: Context) {
         prefs.edit().putInt(k, getBoost(word) + 1).apply()
     }
 
-    fun getBoost(word: String): Int =
-        prefs.getInt(uniKey(word) ?: return 0, 0)
+    fun getBoost(word: String): Int {
+        val k = uniKey(word) ?: return 0
+        return prefs.getInt(k, 0)
+    }
 
     fun getAllWords(): Map<String, Int> =
         prefs.all
@@ -37,8 +39,10 @@ class UserWordStore(context: Context) {
     }
 
     /** Berapa kali [next] muncul setelah [prev] */
-    fun getBigramScore(prev: String, next: String): Int =
-        prefs.getInt(biKey(prev, next) ?: return 0, 0)
+    fun getBigramScore(prev: String, next: String): Int {
+        val k = biKey(prev, next) ?: return 0
+        return prefs.getInt(k, 0)
+    }
 
     /** Semua kata yang pernah mengikuti [prev], beserta skornya */
     fun getBigramFollowers(prev: String): Map<String, Int> {
