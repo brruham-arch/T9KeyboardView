@@ -56,11 +56,13 @@ class T9InputController(
             InputMode.PREDICTIVE -> {
                 if (digitSequence.isNotEmpty()) commitTop()
                 onCommitText(" ")
+                onSuggestionsChanged(emptyList())
             }
             InputMode.MULTITAP -> {
                 handler.removeCallbacks(mtCommitTimer)
                 finalizeMultitap()
                 onCommitText(" ")
+                onSuggestionsChanged(emptyList())
             }
         }
     }
@@ -69,6 +71,7 @@ class T9InputController(
         handler.removeCallbacks(mtCommitTimer)
         if (mode == InputMode.MULTITAP) finalizeMultitap()
         onEnter()
+        onSuggestionsChanged(emptyList())
     }
 
     fun onBackspace() {
@@ -181,12 +184,11 @@ class T9InputController(
         val rawWord = mtWordBuffer.toString()
         val word = if (isShift) rawWord.replaceFirstChar { it.uppercase() } else rawWord
 
-        // tampilkan sebagai composing
         onSetComposing(word)
 
-        val fakeDigits = rawWord.map { '2' }.joinToString("")
-        val predictions = if (rawWord.length >= 2)
-            engine.predict(fakeDigits, lastWord)
+        // 🔥 FIX: pakai kata langsung untuk prediksi (bukan fakeDigits)
+        val predictions = if (word.length >= 2)
+            engine.predictWordPrefix(word, lastWord)
         else emptyList()
 
         val finalSuggestions = mutableListOf<String>()
@@ -204,7 +206,6 @@ class T9InputController(
             rawWord.replaceFirstChar { it.uppercase() }
         else rawWord
 
-        // 🔥 FIX DOUBLE: cukup akhiri composing
         onFinishComposing()
 
         userStore.recordUsage(finalWord)
@@ -219,7 +220,8 @@ class T9InputController(
         mtWordBuffer.clear()
         lastTapMap.clear()
         lastTapTime.clear()
-        onSuggestionsChanged(emptyList())
+
+        // 🔥 JANGAN kosongkan suggestion di sini
     }
 
     private fun clearComposing() {
