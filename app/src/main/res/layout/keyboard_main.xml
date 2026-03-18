@@ -29,6 +29,6 @@
     <com.brruham.t9ime.T9KeyboardView
         android:id="@+id/keyboard_view"
         android:layout_width="match_parent"
-        android:layout_height="270dp" />
+        android:layout_height="280dp" />
 
 </LinearLayout>

@@ -1,5 +1,7 @@
 package com.brruham.t9ime
 
+import android.content.ClipboardManager
+import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
 import android.view.View
@@ -18,10 +20,9 @@ class T9IMEService : InputMethodService() {
 
     override fun onCreateInputView(): View {
         val layout = layoutInflater.inflate(R.layout.keyboard_main, null)
-
-        suggestionBar  = layout.findViewById(R.id.suggestion_bar)
-        keyboardView   = layout.findViewById(R.id.keyboard_view)
-        modeIndicator  = layout.findViewById(R.id.mode_indicator)
+        suggestionBar = layout.findViewById(R.id.suggestion_bar)
+        keyboardView  = layout.findViewById(R.id.keyboard_view)
+        modeIndicator = layout.findViewById(R.id.mode_indicator)
 
         userStore = UserWordStore(this)
         engine    = PredictionEngine(this, userStore)
@@ -29,37 +30,30 @@ class T9IMEService : InputMethodService() {
         controller = T9InputController(
             engine    = engine,
             userStore = userStore,
-            onSuggestionsChanged = { words ->
-                ui { suggestionBar.setSuggestions(words) }
-            },
-            onCommitText = { text ->
-                currentInputConnection?.commitText(text, 1)
-            },
-            onSetComposing = { text ->
-                currentInputConnection?.setComposingText(text, 1)
-            },
-            onFinishComposing = {
-                currentInputConnection?.finishComposingText()
-            },
-            onDeleteChar = {
-                currentInputConnection?.deleteSurroundingText(1, 0)
+            onSuggestionsChanged = { words -> ui { suggestionBar.setSuggestions(words) } },
+            onCommitText   = { text -> currentInputConnection?.commitText(text, 1) },
+            onSetComposing = { text -> currentInputConnection?.setComposingText(text, 1) },
+            onFinishComposing = { currentInputConnection?.finishComposingText() },
+            onDeleteChar   = { currentInputConnection?.deleteSurroundingText(1, 0) },
+            onDeleteWord   = {
+                // Hapus sampai spasi sebelumnya (satu kata)
+                val ic = currentInputConnection ?: return@T9InputController
+                val before = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
+                val spaceIdx = before.trimEnd().lastIndexOf(' ')
+                val deleteCount = if (spaceIdx < 0) before.length else before.length - spaceIdx - 1
+                if (deleteCount > 0) ic.deleteSurroundingText(deleteCount, 0)
             },
             onEnter = {
-                // Kirim Enter sesuai action dari field aktif (Search / Send / Go / newline)
                 val ei = currentInputEditorInfo
                 val action = ei?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: EditorInfo.IME_ACTION_NONE
-                if (action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
+                if (action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED)
                     currentInputConnection?.performEditorAction(action)
-                } else {
+                else
                     sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
-                }
             },
             onModeChanged = { mode ->
                 ui {
-                    modeIndicator.text = if (mode == InputMode.PREDICTIVE)
-                        getString(R.string.mode_predictive)
-                    else
-                        getString(R.string.mode_multitap)
+                    modeIndicator.text = modeLabel(mode, controller.isShift)
                     keyboardView.currentMode = mode
                     keyboardView.invalidate()
                 }
@@ -68,7 +62,7 @@ class T9IMEService : InputMethodService() {
                 ui {
                     keyboardView.isShift = shift
                     keyboardView.invalidate()
-                    modeIndicator.text = buildModeLabel(shift)
+                    modeIndicator.text = modeLabel(controller.mode, shift)
                 }
             }
         )
@@ -79,32 +73,38 @@ class T9IMEService : InputMethodService() {
             override fun onSpaceKey()             = controller.onSpacePressed()
             override fun onEnterKey()             = controller.onEnterPressed()
             override fun onBackspace()            = controller.onBackspace()
-            override fun onToggleMode()           = controller.toggleMode()
+            override fun onBackspaceLong()        = controller.onBackspaceLong()
+            override fun onToggleMode()           { controller.toggleMode(); keyboardView.invalidate() }
             override fun onToggleShift()          = controller.toggleShift()
+            override fun onPaste()                = pasteFromClipboard()
         }
 
-        suggestionBar.setOnSuggestionClickListener { word ->
-            controller.onSuggestionSelected(word)
-        }
+        suggestionBar.setOnSuggestionClickListener { word -> controller.onSuggestionSelected(word) }
 
         keyboardView.currentMode = controller.mode
-        modeIndicator.text = getString(R.string.mode_predictive)
-
+        modeIndicator.text = modeLabel(controller.mode, false)
         return layout
     }
 
-    private fun buildModeLabel(shift: Boolean): String {
-        val modeStr = if (controller.mode == InputMode.PREDICTIVE) "✦ T9" else "• abc"
-        return if (shift) "$modeStr  ⇧CAPS" else modeStr
+    // ── Clipboard paste — unlimited karakter ─────────────────────────────────
+    private fun pasteFromClipboard() {
+        val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
+        val clip = cm.primaryClip ?: return
+        if (clip.itemCount == 0) return
+        // Ambil teks penuh tanpa batasan
+        val text = clip.getItemAt(0).coerceToText(this)?.toString() ?: return
+        if (text.isEmpty()) return
+        currentInputConnection?.commitText(text, 1)
+    }
+
+    private fun modeLabel(mode: InputMode, shift: Boolean): String {
+        val m = if (mode == InputMode.PREDICTIVE) "✦ T9" else "• abc"
+        return if (shift) "$m  ⇧" else m
     }
 
     override fun onWindowShown() {
         super.onWindowShown()
         suggestionBar.setSuggestions(emptyList())
-    }
-
-    override fun onFinishInput() {
-        super.onFinishInput()
     }
 
     private fun ui(action: () -> Unit) = keyboardView.post(action)
