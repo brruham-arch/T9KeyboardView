@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">T9 IME</string>
+    <string name="ime_label">T9 Keyboard</string>
+    <string name="mode_predictive">✦ T9 Prediktif</string>
+    <string name="mode_multitap">• Multi-tap</string>
+    <string name="loading">Memuat kamus…</string>
+</resources>

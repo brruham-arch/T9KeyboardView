@@ -1,0 +1,2 @@
+rootProject.name = "T9IME"
+include ':app'
