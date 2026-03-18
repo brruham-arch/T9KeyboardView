@@ -1,18 +1,11 @@
 package com.brruham.t9ime
 
 import android.inputmethodservice.InputMethodService
+import android.view.KeyEvent
 import android.view.View
+import android.view.inputmethod.EditorInfo
 import android.widget.TextView
 
-/**
- * Entry point keyboard IME.
- * Tugas: inisialisasi semua komponen dan hubungkan event ke InputConnection.
- *
- * Flow:
- *   onCreateInputView() → inflate layout → init engine + controller
- *   KeyboardView event → controller.onKeyPressed()
- *   Controller callback → currentInputConnection.commitText / setComposingText / dll
- */
 class T9IMEService : InputMethodService() {
 
     private lateinit var engine: PredictionEngine
@@ -26,20 +19,18 @@ class T9IMEService : InputMethodService() {
     override fun onCreateInputView(): View {
         val layout = layoutInflater.inflate(R.layout.keyboard_main, null)
 
-        suggestionBar   = layout.findViewById(R.id.suggestion_bar)
-        keyboardView    = layout.findViewById(R.id.keyboard_view)
-        modeIndicator   = layout.findViewById(R.id.mode_indicator)
+        suggestionBar  = layout.findViewById(R.id.suggestion_bar)
+        keyboardView   = layout.findViewById(R.id.keyboard_view)
+        modeIndicator  = layout.findViewById(R.id.mode_indicator)
 
-        // Init engine & store (engine loading kamus di background thread)
         userStore = UserWordStore(this)
         engine    = PredictionEngine(this, userStore)
 
-        // Controller: semua event → callback ke InputConnection
         controller = T9InputController(
-            engine  = engine,
+            engine    = engine,
             userStore = userStore,
             onSuggestionsChanged = { words ->
-                runOnUiThread { suggestionBar.setSuggestions(words) }
+                ui { suggestionBar.setSuggestions(words) }
             },
             onCommitText = { text ->
                 currentInputConnection?.commitText(text, 1)
@@ -53,8 +44,18 @@ class T9IMEService : InputMethodService() {
             onDeleteChar = {
                 currentInputConnection?.deleteSurroundingText(1, 0)
             },
+            onEnter = {
+                // Kirim Enter sesuai action dari field aktif (Search / Send / Go / newline)
+                val ei = currentInputEditorInfo
+                val action = ei?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: EditorInfo.IME_ACTION_NONE
+                if (action != EditorInfo.IME_ACTION_NONE && action != EditorInfo.IME_ACTION_UNSPECIFIED) {
+                    currentInputConnection?.performEditorAction(action)
+                } else {
+                    sendDownUpKeyEvents(KeyEvent.KEYCODE_ENTER)
+                }
+            },
             onModeChanged = { mode ->
-                runOnUiThread {
+                ui {
                     modeIndicator.text = if (mode == InputMode.PREDICTIVE)
                         getString(R.string.mode_predictive)
                     else
@@ -62,45 +63,49 @@ class T9IMEService : InputMethodService() {
                     keyboardView.currentMode = mode
                     keyboardView.invalidate()
                 }
+            },
+            onShiftChanged = { shift ->
+                ui {
+                    keyboardView.isShift = shift
+                    keyboardView.invalidate()
+                    modeIndicator.text = buildModeLabel(shift)
+                }
             }
         )
 
-        // Hubungkan key events
         keyboardView.keyListener = object : T9KeyboardView.KeyListener {
-            override fun onDigitKey(digit: Char) = controller.onKeyPressed(digit)
+            override fun onDigitKey(digit: Char)  = controller.onKeyPressed(digit)
+            override fun onDigitLong(digit: Char) = controller.onDigitLong(digit)
             override fun onSpaceKey()             = controller.onSpacePressed()
+            override fun onEnterKey()             = controller.onEnterPressed()
             override fun onBackspace()            = controller.onBackspace()
-            override fun onBackspaceLong()        = controller.onBackspaceLong()
             override fun onToggleMode()           = controller.toggleMode()
+            override fun onToggleShift()          = controller.toggleShift()
         }
 
-        // Tap saran langsung commit
         suggestionBar.setOnSuggestionClickListener { word ->
             controller.onSuggestionSelected(word)
         }
 
-        // Set mode awal pada view
         keyboardView.currentMode = controller.mode
         modeIndicator.text = getString(R.string.mode_predictive)
 
         return layout
     }
 
+    private fun buildModeLabel(shift: Boolean): String {
+        val modeStr = if (controller.mode == InputMode.PREDICTIVE) "✦ T9" else "• abc"
+        return if (shift) "$modeStr  ⇧CAPS" else modeStr
+    }
+
     override fun onWindowShown() {
         super.onWindowShown()
-        // Refresh suggestion bar kosong saat keyboard muncul
         suggestionBar.setSuggestions(emptyList())
     }
 
     override fun onFinishInput() {
         super.onFinishInput()
-        // Reset state saat berpindah field
-        controller.onBackspaceLong()  // clear composing
     }
 
-    // ── Helper: run on main thread ────────────────────────────────────────────
-
-    private fun runOnUiThread(action: () -> Unit) {
-        keyboardView.post(action)
-    }
+    private fun ui(action: () -> Unit) = keyboardView.post(action)
 }
