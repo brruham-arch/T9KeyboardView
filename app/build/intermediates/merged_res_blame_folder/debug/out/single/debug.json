@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "com.brruham.t9ime.app-merged_res-8:/layout_keyboard_main.xml.flat",
+        "source": "com.brruham.t9ime.app-main-10:/layout/keyboard_main.xml"
+    },
+    {
+        "merged": "com.brruham.t9ime.app-merged_res-8:/xml_method.xml.flat",
+        "source": "com.brruham.t9ime.app-main-10:/xml/method.xml"
+    }
+]

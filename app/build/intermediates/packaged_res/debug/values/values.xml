@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent_blue">#4A90E2</color>
+    <color name="accent_red">#E94560</color>
+    <color name="accent_teal">#00D4AA</color>
+    <color name="bg_key">#1A1F35</color>
+    <color name="bg_key_pressed">#2D3A6B</color>
+    <color name="bg_keyboard">#0D0D1A</color>
+    <color name="bg_suggestion">#080810</color>
+    <color name="divider">#1E2440</color>
+    <color name="key_sub_text">#6B7A99</color>
+    <color name="key_text">#EAEAEA</color>
+    <color name="mode_indicator">#444C6A</color>
+    <color name="suggestion_other">#8899BB</color>
+    <color name="suggestion_top">#00D4AA</color>
+    <string name="app_name">T9 IME</string>
+    <string name="ime_label">T9 Keyboard</string>
+    <string name="loading">Memuat kamus…</string>
+    <string name="mode_multitap">• Multi-tap</string>
+    <string name="mode_predictive">✦ T9 Prediktif</string>
+</resources>

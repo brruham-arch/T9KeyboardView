@@ -1,0 +1,60 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.brruham.t9ime"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <permission
+11-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:22:5-24:47
+12        android:name="com.brruham.t9ime.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+12-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:23:9-81
+13        android:protectionLevel="signature" />
+13-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:24:9-44
+14
+15    <uses-permission android:name="com.brruham.t9ime.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+15-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:26:5-97
+15-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:26:22-94
+16
+17    <application
+17-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:4:5-22:19
+18        android:allowBackup="true"
+18-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:5:9-35
+19        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+19-->[androidx.core:core:1.9.0] /data/data/com.termux/files/home/.gradle/caches/transforms-3/42386d6b0c6e45421ce0027e546bee31/transformed/core-1.9.0/AndroidManifest.xml:28:18-86
+20        android:debuggable="true"
+21        android:extractNativeLibs="false"
+22        android:label="@string/app_name"
+22-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:6:9-41
+23        android:supportsRtl="true" >
+23-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:7:9-35
+24        <service
+24-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:9:9-20:19
+25            android:name="com.brruham.t9ime.T9IMEService"
+25-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:10:13-41
+26            android:exported="true"
+26-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:12:13-36
+27            android:label="@string/ime_label"
+27-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:11:13-46
+28            android:permission="android.permission.BIND_INPUT_METHOD" >
+28-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:13:13-70
+29            <intent-filter>
+29-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:14:13-16:29
+30                <action android:name="android.view.InputMethod" />
+30-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:15:17-67
+30-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:15:25-64
+31            </intent-filter>
+32
+33            <meta-data
+33-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:17:13-19:50
+34                android:name="android.view.im"
+34-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:18:17-47
+35                android:resource="@xml/method" />
+35-->/data/data/com.termux/files/home/t9ime_test/app/src/main/AndroidManifest.xml:19:17-47
+36        </service>
+37    </application>
+38
+39</manifest>
