@@ -179,3 +179,37 @@ class PredictionEngine(
 
     fun getCharsForKey(digit: Char): String = T9_MAP[digit] ?: ""
 }
+
+    // ================= PREFIX PREDICTION (MULTITAP SUPPORT) =================
+
+    fun predictWordPrefix(prefix: String, lastWord: String): List<String> {
+        if (prefix.isEmpty()) return emptyList()
+
+        val lower = prefix.lowercase()
+
+        val candidates = mutableListOf<String>()
+
+        // ambil dari dictionary utama
+        for (word in dictionary) {
+            if (word.startsWith(lower)) {
+                candidates.add(word)
+            }
+        }
+
+        // ambil dari user words
+        for (word in userWords) {
+            if (word.startsWith(lower)) {
+                candidates.add(word)
+            }
+        }
+
+        // ranking sederhana: panjang + frekuensi
+        return candidates
+            .distinct()
+            .sortedWith(compareByDescending<String> {
+                userStore.getFrequency(it)
+            }.thenBy {
+                it.length
+            })
+            .take(5)
+    }
