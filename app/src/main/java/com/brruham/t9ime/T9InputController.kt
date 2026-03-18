@@ -140,7 +140,7 @@ class T9InputController(
         onSuggestionsChanged(emptyList())
     }
 
-    // ================= MULTITAP (UPDATED CORE) =================
+    // ================= MULTITAP =================
 
     private val lastTapMap = mutableMapOf<Char, Int>()
     private val lastTapTime = mutableMapOf<Char, Long>()
@@ -181,16 +181,14 @@ class T9InputController(
         val rawWord = mtWordBuffer.toString()
         val word = if (isShift) rawWord.replaceFirstChar { it.uppercase() } else rawWord
 
-        // 🔥 1. tampilkan sebagai composing (bukan commit)
+        // tampilkan sebagai composing
         onSetComposing(word)
 
-        // 🔥 2. ambil prediksi
         val fakeDigits = rawWord.map { '2' }.joinToString("")
         val predictions = if (rawWord.length >= 2)
             engine.predict(fakeDigits, lastWord)
         else emptyList()
 
-        // 🔥 3. paksa kata sendiri jadi suggestion pertama
         val finalSuggestions = mutableListOf<String>()
         finalSuggestions.add(word)
         finalSuggestions.addAll(predictions.filter { it != word })
@@ -202,10 +200,12 @@ class T9InputController(
         val rawWord = mtWordBuffer.toString()
         if (rawWord.isEmpty()) return
 
-        clearComposing()
+        val finalWord = if (isShift)
+            rawWord.replaceFirstChar { it.uppercase() }
+        else rawWord
 
-        val finalWord = if (isShift) rawWord.replaceFirstChar { it.uppercase() } else rawWord
-        onCommitText(finalWord)
+        // 🔥 FIX DOUBLE: cukup akhiri composing
+        onFinishComposing()
 
         userStore.recordUsage(finalWord)
         engine.addWord(finalWord)
