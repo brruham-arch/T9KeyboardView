@@ -1,0 +1,25 @@
+R_DEF: Internal format may change without notice
+local
+color accent_blue
+color accent_red
+color accent_teal
+color bg_key
+color bg_key_pressed
+color bg_keyboard
+color bg_suggestion
+color divider
+color key_sub_text
+color key_text
+color mode_indicator
+color suggestion_other
+color suggestion_top
+id keyboard_view
+id mode_indicator
+id suggestion_bar
+layout keyboard_main
+string app_name
+string ime_label
+string loading
+string mode_multitap
+string mode_predictive
+xml method

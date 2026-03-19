@@ -9,14 +9,14 @@
     <com.brruham.t9ime.SuggestionBarView
         android:id="@+id/suggestion_bar"
         android:layout_width="match_parent"
-        android:layout_height="290dp"
+        android:layout_height="48dp"
         android:background="@color/bg_suggestion" />
 
     <!-- Mode Indicator Strip -->
     <TextView
         android:id="@+id/mode_indicator"
         android:layout_width="match_parent"
-        android:layout_height="290dp"
+        android:layout_height="18dp"
         android:text="@string/mode_predictive"
         android:textColor="@color/mode_indicator"
         android:textSize="9sp"
