@@ -212,10 +212,9 @@ class T9InputController(
     }
 
     private fun recordAndCommit(word: String, addSpace: Boolean) {
-        clearPredComposing()
         val out = applyShiftMt(word)
-        // Auto-spasi setelah commit T9
-        onCommitText(if (addSpace) "$out " else "$out ")
+        // commitText otomatis replace composing region — jangan finishComposing dulu
+        onCommitText("$out ")
         if (lastWord.isNotBlank()) userStore.recordBigram(lastWord, word)
         userStore.recordUsage(word)
         engine.addWord(word)
@@ -268,8 +267,8 @@ class T9InputController(
     /** Commit seluruh kata composing, learn, reset */
     private fun commitMtWord(addSpace: Boolean) {
         val word = mtComposingFull.lowercase().trim()
-        onFinishComposing()
         val out = applyShiftMt(mtComposingFull)
+        // commitText replace composing langsung, tidak perlu finishComposing dulu
         onCommitText(if (addSpace) "$out " else out)
         if (word.length >= 2 && word.all { it.isLetter() }) {
             if (lastWord.isNotBlank()) userStore.recordBigram(lastWord, word)
@@ -285,10 +284,8 @@ class T9InputController(
     /** Tap saran di multitap → ganti seluruh composing dengan kata saran */
     private fun replaceMtWithSuggestion(word: String) {
         handler.removeCallbacks(mtTimer)
-        // Hapus composing lama
-        onFinishComposing()
-        // Commit kata saran + spasi
         val out = applyShiftMt(word)
+        // commitText replace composing region langsung
         onCommitText("$out ")
         if (lastWord.isNotBlank()) userStore.recordBigram(lastWord, word)
         userStore.recordUsage(word)
@@ -310,7 +307,6 @@ class T9InputController(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun clearAll() {
-        onSetComposing(""); onFinishComposing()
         digitSeq = ""; predSuggestions = emptyList()
         mtDone.clear(); mtKey = ' '; mtIndex = 0; mtActive = false
         onSuggestionsChanged(emptyList())
