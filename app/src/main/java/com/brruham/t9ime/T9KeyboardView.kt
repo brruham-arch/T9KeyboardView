@@ -232,6 +232,7 @@ class T9KeyboardView @JvmOverloads constructor(
                 val mStr = if (currentMode == InputMode.PREDICTIVE) "T9" else "abc"
                 val ovHint = when (overlay) {
                     Overlay.NONE   -> "↵  ·hold:menu  ·swipe↑:angka  [$mStr]"
+                    Overlay.NUMROW -> "▼ tap sini untuk tutup angka"
                     else           -> "▲ tutup"
                 }
                 canvas.drawText(ovHint, cx, cy(actTx, r), actTx)
@@ -337,8 +338,11 @@ class T9KeyboardView @JvmOverloads constructor(
                         val nk = numRow.find { it.rect.contains(x, y) }
                         if (nk != null && nk.digit == overlayPressedId) {
                             keyListener?.onDigitLong(nk.digit); vibrate()
+                            // Tetap buka untuk input berturut-turut
+                        } else {
+                            // Tap di luar numrow (action bar atau area lain) → tutup
+                            overlay = Overlay.NONE
                         }
-                        // Numrow TETAP terbuka — tutup manual via action bar tap
                         overlayPressedId = null; invalidate(); return true
                     }
                     Overlay.NONE -> Unit
