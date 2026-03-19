@@ -1,6 +1,7 @@
 package com.brruham.t9ime
 
 import android.content.ClipboardManager
+import android.view.inputmethod.InputConnection
 import android.content.Context
 import android.inputmethodservice.InputMethodService
 import android.view.KeyEvent
@@ -33,14 +34,8 @@ class T9IMEService : InputMethodService() {
             onCommitText    = { text -> currentInputConnection?.commitText(text, 1) },
             onSetComposing  = { text -> currentInputConnection?.setComposingText(text, 1) },
             onFinishComposing = { currentInputConnection?.finishComposingText() },
-            onDeleteChar    = { currentInputConnection?.deleteSurroundingText(1, 0) },
-            onDeleteWord    = {
-                val ic = currentInputConnection ?: return@T9InputController
-                val before = ic.getTextBeforeCursor(100, 0)?.toString() ?: ""
-                val spaceIdx = before.trimEnd().lastIndexOf(' ')
-                val del = if (spaceIdx < 0) before.length else before.length - spaceIdx - 1
-                if (del > 0) ic.deleteSurroundingText(del, 0)
-            },
+            onDeleteChar    = { smartDelete() },
+            onDeleteWord    = { smartDeleteWord() },
             onEnter = {
                 val ei = currentInputEditorInfo
                 val action = ei?.imeOptions?.and(EditorInfo.IME_MASK_ACTION) ?: EditorInfo.IME_ACTION_NONE
@@ -103,6 +98,33 @@ class T9IMEService : InputMethodService() {
     override fun onWindowShown() {
         super.onWindowShown()
         suggestionBar.setSuggestions(emptyList())
+    }
+
+    /**
+     * Dipanggil Android setiap kali selection/cursor berubah di field.
+     * oldSelStart != newSelStart → user tap/klik pindahkan cursor.
+     * Reset state keyboard agar tidak ada composing hantu.
+     */
+    override fun onUpdateSelection(
+        oldSelStart: Int, oldSelEnd: Int,
+        newSelStart: Int, newSelEnd: Int,
+        candidatesStart: Int, candidatesEnd: Int
+    ) {
+        super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
+        // Kalau cursor pindah bukan karena keyboard sendiri yang commit
+        // (candidatesStart/End == -1 artinya tidak ada composing aktif dari kita)
+        if (candidatesStart == -1 && candidatesEnd == -1) {
+            if (::controller.isInitialized) controller.resetState()
+        }
+    }
+
+    /** Field baru / app baru → reset total */
+    override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
+        super.onStartInputView(info, restarting)
+        if (!restarting && ::controller.isInitialized) {
+            controller.resetState()
+            ui { suggestionBar.setSuggestions(emptyList()) }
+        }
     }
 
     private fun ui(action: () -> Unit) = keyboardView.post(action)

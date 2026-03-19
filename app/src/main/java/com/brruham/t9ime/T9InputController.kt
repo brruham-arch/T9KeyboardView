@@ -206,6 +206,23 @@ class T9InputController(
         onModeChanged(mode)
     }
 
+    /**
+     * Reset semua state — dipanggil saat:
+     * - Cursor pindah (user tap di tengah teks)
+     * - Field input berganti
+     * Tanpa commit apapun, langsung buang state.
+     */
+    fun resetState() {
+        handler.removeCallbacks(mtTimer)
+        handler.removeCallbacks(punctTimer)
+        // Jangan commit — cursor sudah pindah, composing region tidak valid lagi
+        onFinishComposing()
+        digitSeq = ""; predSuggestions = emptyList()
+        mtDone.clear(); mtKey = ' '; mtIndex = 0; mtActive = false
+        lastPunctChar = ' '; punctIndex = -1
+        onSuggestionsChanged(emptyList())
+    }
+
     fun toggleShift() {
         isShift = !isShift
         onShiftChanged(isShift)
