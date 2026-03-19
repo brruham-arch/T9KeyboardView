@@ -66,7 +66,7 @@ class T9KeyboardView @JvmOverloads constructor(
         Key('4',"4","GHI"),  Key('5',"5","JKL"), Key('6',"6","MNO"),
         Key('7',"7","PQRS"), Key('8',"8","TUV"), Key('9',"9","WXYZ"),
         Key('S',"⇧","CAPS", KType.SHIFT),
-        Key('0',"⎵","SPASI",KType.SPACE),
+        Key('0',"0","SPASI",KType.SPACE),
         Key('B',"⌫","",     KType.DELETE),
         Key('A',"",  "",    KType.ACTION)
     )
@@ -132,7 +132,8 @@ class T9KeyboardView @JvmOverloads constructor(
 
     // ── Touch ─────────────────────────────────────────────────────────────────
     private var pressedId: Char? = null
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler = Handler(Looper.getMainLooper())         // untuk bsRepeat
+    private val longPressHandler = Handler(Looper.getMainLooper()) // untuk long-press digit
     private var bsHeld = false; private var longFired = false
     private var touchDownY = 0f
 
@@ -222,7 +223,10 @@ class T9KeyboardView @JvmOverloads constructor(
         canvas.drawRoundRect(r, cr, cr, bor)
         when (k.type) {
             KType.DELETE -> canvas.drawText("⌫", cx, cy(delTx, r), delTx)
-            KType.SPACE  -> canvas.drawText("SPASI", cx, cy(spTx, r), spTx)
+            KType.SPACE  -> {
+                canvas.drawText("0", cx, cy(mainTx, r) - r.height() * 0.07f, mainTx)
+                canvas.drawText("SPASI", cx, r.bottom - r.height() * 0.18f, subTx)
+            }
             KType.SHIFT  -> canvas.drawText("⇧ CAPS", cx, cy(if (isShift) shOnTx else shTx, r), if (isShift) shOnTx else shTx)
             KType.ACTION -> {
                 val mStr = if (currentMode == InputMode.PREDICTIVE) "T9" else "abc"
@@ -296,9 +300,10 @@ class T9KeyboardView @JvmOverloads constructor(
                 pressedId = k.id; longFired = false; invalidate(); vibrate()
                 when (k.id) {
                     'B' -> { keyListener?.onBackspace(); startBsRepeat() }
-                    'A' -> handler.postDelayed({ longFired = true; overlay = Overlay.ACTION; invalidate() }, 500)
+                    'A' -> longPressHandler.postDelayed({ longFired = true; overlay = Overlay.ACTION; invalidate() }, 500)
+                    '0' -> longPressHandler.postDelayed({ longFired = true; keyListener?.onDigitLong('0') }, 500)
                     else -> if (k.type == KType.NORMAL) {
-                        handler.postDelayed({ longFired = true; keyListener?.onDigitLong(k.id) }, 600)
+                        longPressHandler.postDelayed({ longFired = true; keyListener?.onDigitLong(k.id) }, 600)
                     }
                 }
             }
@@ -333,12 +338,14 @@ class T9KeyboardView @JvmOverloads constructor(
                         if (nk != null && nk.digit == overlayPressedId) {
                             keyListener?.onDigitLong(nk.digit); vibrate()
                         }
-                        overlay = Overlay.NONE; overlayPressedId = null; pressedId = null; invalidate(); return true
+                        // Numrow TETAP terbuka — tutup manual via action bar tap
+                        overlayPressedId = null; invalidate(); return true
                     }
                     Overlay.NONE -> Unit
                 }
 
                 stopBsRepeat()
+                longPressHandler.removeCallbacksAndMessages(null)
                 // Swipe up dari action bar → numrow
                 if (pressedId == 'A' && deltaY < -40f && !longFired) {
                     overlay = Overlay.NUMROW; pressedId = null; invalidate(); return true
@@ -358,7 +365,9 @@ class T9KeyboardView @JvmOverloads constructor(
                 pressedId = null; invalidate(); performClick()
             }
             MotionEvent.ACTION_CANCEL -> {
-                stopBsRepeat(); overlayPressedId = null; pressedId = null; invalidate()
+                stopBsRepeat()
+                longPressHandler.removeCallbacksAndMessages(null)
+                overlayPressedId = null; pressedId = null; invalidate()
             }
         }
         return true
