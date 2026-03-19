@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Landscape: keyboard lebih pendek agar tidak memenuhi layar -->
+    <dimen name="keyboard_height">180dp</dimen>
+    <dimen name="suggestion_bar_height">36dp</dimen>
+</resources>

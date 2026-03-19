@@ -13,6 +13,7 @@ class T9IMEService : InputMethodService() {
 
     private lateinit var engine: PredictionEngine
     private lateinit var userStore: UserWordStore
+    private lateinit var settings: SettingsStore
     private lateinit var controller: T9InputController
     private lateinit var keyboardView: T9KeyboardView
     private lateinit var suggestionBar: SuggestionBarView
@@ -25,6 +26,7 @@ class T9IMEService : InputMethodService() {
         modeIndicator = layout.findViewById(R.id.mode_indicator)
 
         userStore = UserWordStore(this)
+        settings  = SettingsStore(this)
         engine    = PredictionEngine(this, userStore)
 
         controller = T9InputController(

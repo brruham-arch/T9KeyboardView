@@ -45,8 +45,10 @@ class T9KeyboardView @JvmOverloads constructor(
     var isShift: Boolean = false
 
     private val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    private val settings = SettingsStore(context)
 
     private fun vibrate() {
+        if (!settings.vibrate) return
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 vibrator?.vibrate(VibrationEffect.createOneShot(18, VibrationEffect.DEFAULT_AMPLITUDE))
@@ -145,6 +147,7 @@ class T9KeyboardView @JvmOverloads constructor(
         val mainH   = H - actionH - gap * 7
         val rowH    = (mainH - gap * 3) / 4f
         val colW    = (W - gap * 4) / 3f
+        // Landscape: tinggi tombol dikurangi lewat layout_height, bukan di sini
 
         fun r(col: Int, row: Int) = RectF(
             gap + col * (colW + gap), gap + row * (rowH + gap),
