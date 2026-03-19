@@ -70,13 +70,39 @@ class T9InputController(
         return mtDone.toString() + ch
     }
 
+    // ── Punctuation state (tombol 1) — terpisah dari composing word ─────────────
+    private val punctChars = ".,!?'-"
+    private var punctIndex = -1
+    private var lastPunctChar = ' '
+    private val punctTimer = Runnable { commitPunct() }
+
+    private fun handlePunct() {
+        handler.removeCallbacks(punctTimer)
+        // Flush composing dulu jika ada kata sedang diketik
+        if (mode == InputMode.PREDICTIVE && digitSeq.isNotEmpty()) commitPredTop(addSpace = false)
+        if (mode == InputMode.MULTITAP) {
+            lockCurrentMtChar()
+            if (mtDone.isNotEmpty()) commitMtWord(addSpace = false)
+        }
+        punctIndex = (punctIndex + 1) % punctChars.length
+        lastPunctChar = punctChars[punctIndex]
+        // Tampil di composing agar kelihatan sebelum dikonfirmasi
+        onSetComposing(lastPunctChar.toString())
+        handler.postDelayed(punctTimer, MT_DELAY)
+    }
+
+    private fun commitPunct() {
+        if (lastPunctChar == ' ') return
+        onCommitText(lastPunctChar.toString())
+        lastPunctChar = ' '
+        punctIndex = -1
+    }
+
     // ── Input events ──────────────────────────────────────────────────────────
 
     fun onKeyPressed(digit: Char) {
         if (digit == '1') {
-            // Tanda baca — pakai multitap style di kedua mode
-            if (mode == InputMode.PREDICTIVE && digitSeq.isNotEmpty()) commitPredTop(addSpace = false)
-            doMtKey('1')
+            handlePunct()
             return
         }
         when (mode) {
@@ -162,6 +188,8 @@ class T9InputController(
 
     fun onBackspaceLong() {
         handler.removeCallbacks(mtTimer)
+        handler.removeCallbacks(punctTimer)
+        commitPunct()  // flush punct jika ada
         clearAll()
         onDeleteWord()
     }
@@ -307,6 +335,8 @@ class T9InputController(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun clearAll() {
+        handler.removeCallbacks(punctTimer)
+        lastPunctChar = ' '; punctIndex = -1
         digitSeq = ""; predSuggestions = emptyList()
         mtDone.clear(); mtKey = ' '; mtIndex = 0; mtActive = false
         onSuggestionsChanged(emptyList())
