@@ -33,7 +33,8 @@ class SettingsActivity : AppCompatActivity() {
             this.text = text
             textSize = 11f
             setTextColor(0xFF00D4AA.toInt())
-            typeface = android.graphics.Typeface.MONOSPACE
+            typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
             letterSpacing = 0.2f
             setPadding(0, 32, 0, 8)
         }
@@ -80,9 +81,9 @@ class SettingsActivity : AppCompatActivity() {
         root.addView(TextView(this).apply {
             text = "T9 KEYBOARD"
             textSize = 22f
-            isFakeBoldText = true
             setTextColor(0xFFE8EAF0.toInt())
-            typeface = android.graphics.Typeface.MONOSPACE
+            typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
             gravity = android.view.Gravity.CENTER
             setPadding(0, 0, 0, 4)
         })
