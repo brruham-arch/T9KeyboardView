@@ -24,22 +24,25 @@ class T9InputController(
     var isShift = false
         private set
 
-    // ── Predictive state ──────────────────────────────────────────────────────
+    // ── Predictive ────────────────────────────────────────────────────────────
     private var digitSequence = ""
     private var lastWord = ""
     private var currentSuggestions = listOf<String>()
 
-    // ── Multitap state ────────────────────────────────────────────────────────
+    // ── Multitap ──────────────────────────────────────────────────────────────
     private var mtKey = ' '
     private var mtIndex = 0
     private var isComposing = false
-    private val mtWordBuffer = StringBuilder()   // buffer kata multitap yg sedang dibentuk
+
+    // Buffer kata yang sedang diketik di multitap
+    // Setiap char yang sudah di-finishComposing masuk sini
+    private val mtWordBuffer = StringBuilder()
 
     private val handler = Handler(Looper.getMainLooper())
-    private val mtCommitTimer = Runnable { commitMultitap(autoCommit = true) }
+    private val mtCommitTimer = Runnable { autoCommitMultitapChar() }
     private val MT_DELAY = 800L
 
-    // ── Key Events ────────────────────────────────────────────────────────────
+    // ── Digit keys ────────────────────────────────────────────────────────────
 
     fun onKeyPressed(digit: Char) {
         if (digit == '1') {
@@ -60,7 +63,12 @@ class T9InputController(
         onCommitText(digit.toString())
     }
 
-    fun onSuggestionSelected(word: String) = recordAndCommit(word, appendSpace = true)
+    fun onSuggestionSelected(word: String) {
+        when (mode) {
+            InputMode.PREDICTIVE -> recordAndCommit(word, appendSpace = true)
+            InputMode.MULTITAP   -> commitMultitapSuggestion(word)
+        }
+    }
 
     fun onSpacePressed() {
         when (mode) {
@@ -70,9 +78,8 @@ class T9InputController(
             }
             InputMode.MULTITAP -> {
                 handler.removeCallbacks(mtCommitTimer)
-                commitMultitap(autoCommit = false)
-                // Catat kata dari buffer sebelum reset
-                learnMultitapWord()
+                flushMultitapChar()
+                learnAndResetMtBuffer()
                 onCommitText(" ")
             }
         }
@@ -82,7 +89,7 @@ class T9InputController(
         handler.removeCallbacks(mtCommitTimer)
         when (mode) {
             InputMode.PREDICTIVE -> if (digitSequence.isNotEmpty()) commitTopSilent()
-            InputMode.MULTITAP   -> { commitMultitap(autoCommit = false); learnMultitapWord() }
+            InputMode.MULTITAP   -> { flushMultitapChar(); learnAndResetMtBuffer() }
         }
         onEnter()
     }
@@ -93,18 +100,20 @@ class T9InputController(
                 if (digitSequence.isNotEmpty()) {
                     digitSequence = digitSequence.dropLast(1)
                     if (digitSequence.isEmpty()) { clearComposing(); onSuggestionsChanged(emptyList()) }
-                    else refreshSuggestions()
+                    else refreshPredictiveSuggestions()
                 } else onDeleteChar()
             }
             InputMode.MULTITAP -> {
                 handler.removeCallbacks(mtCommitTimer)
                 if (isComposing) {
-                    // Hapus huruf composing, backtrack mtWordBuffer
+                    // Cancel composing tanpa commit
                     clearComposing()
-                    if (mtWordBuffer.isNotEmpty()) mtWordBuffer.deleteCharAt(mtWordBuffer.length - 1)
                 } else {
+                    // Hapus char terakhir dari buffer juga
                     if (mtWordBuffer.isNotEmpty()) mtWordBuffer.deleteCharAt(mtWordBuffer.length - 1)
                     onDeleteChar()
+                    // Update saran dari buffer yang tersisa
+                    updateMultitapSuggestions()
                 }
             }
         }
@@ -137,14 +146,14 @@ class T9InputController(
         onShiftChanged(isShift)
     }
 
-    // ── Predictive ────────────────────────────────────────────────────────────
+    // ── Predictive logic ──────────────────────────────────────────────────────
 
     private fun handlePredictive(digit: Char) {
         digitSequence += digit
-        refreshSuggestions()
+        refreshPredictiveSuggestions()
     }
 
-    private fun refreshSuggestions() {
+    private fun refreshPredictiveSuggestions() {
         val sugg = engine.predict(digitSequence, lastWord)
         currentSuggestions = sugg
         onSuggestionsChanged(sugg)
@@ -160,8 +169,8 @@ class T9InputController(
     private fun recordAndCommit(word: String, appendSpace: Boolean) {
         clearComposing()
         val out = applyShift(word)
-        onCommitText(if (appendSpace) "$out " else out)
-        // Bigram: catat pasangan lastWord → word
+        // Auto-spasi setelah commit T9 — tidak perlu tap spasi manual
+        onCommitText(if (appendSpace) "$out " else "$out ")
         if (lastWord.isNotBlank()) userStore.recordBigram(lastWord, word)
         userStore.recordUsage(word)
         engine.addWord(word)
@@ -172,17 +181,44 @@ class T9InputController(
         if (isShift) { isShift = false; onShiftChanged(false) }
     }
 
-    // ── Multitap ──────────────────────────────────────────────────────────────
+    // ── Multitap suggestion (dari suggestion bar tap) ─────────────────────────
+
+    private fun commitMultitapSuggestion(word: String) {
+        handler.removeCallbacks(mtCommitTimer)
+        clearComposing()
+
+        // Hapus karakter yang sudah diketik (isi mtWordBuffer)
+        val bufLen = mtWordBuffer.length
+        if (bufLen > 0) {
+            repeat(bufLen) { onDeleteChar() }
+        }
+
+        // Commit kata saran
+        val out = applyShift(word)
+        onCommitText("$out ")
+        if (lastWord.isNotBlank()) userStore.recordBigram(lastWord, word)
+        userStore.recordUsage(word)
+        engine.addWord(word)
+        lastWord = word
+        mtWordBuffer.clear()
+        onSuggestionsChanged(emptyList())
+        if (isShift) { isShift = false; onShiftChanged(false) }
+    }
+
+    // ── Multitap logic ────────────────────────────────────────────────────────
 
     private fun doMultitap(digit: Char) {
         handler.removeCallbacks(mtCommitTimer)
+
         if (digit == mtKey && isComposing) {
+            // Cycle ke huruf berikutnya
             val chars = engine.getCharsForKey(digit)
             if (chars.isEmpty()) return
             mtIndex = (mtIndex + 1) % chars.length
             onSetComposing(applyShift(chars[mtIndex].toString()))
         } else {
-            if (isComposing) commitMultitap(autoCommit = true)
+            // Tombol beda — commit char sebelumnya dulu
+            if (isComposing) flushMultitapChar()
             mtKey = digit; mtIndex = 0
             val chars = engine.getCharsForKey(digit)
             if (chars.isEmpty()) return
@@ -192,27 +228,40 @@ class T9InputController(
         handler.postDelayed(mtCommitTimer, MT_DELAY)
     }
 
-    private fun commitMultitap(autoCommit: Boolean) {
-        if (isComposing) {
-            // Tambah huruf aktif ke word buffer
-            val chars = engine.getCharsForKey(mtKey)
-            if (chars.isNotEmpty() && mtIndex < chars.length) {
-                mtWordBuffer.append(chars[mtIndex])
-            }
-            onFinishComposing()
-            isComposing = false
-        }
-        mtKey = ' '; mtIndex = 0
-        if (isShift) { isShift = false; onShiftChanged(false) }
-        // Kalau auto-commit (timer), pelajari kata otomatis
-        if (autoCommit) learnMultitapWord()
+    /** Timer habis → commit char aktif otomatis */
+    private fun autoCommitMultitapChar() {
+        flushMultitapChar()
+        updateMultitapSuggestions()
     }
 
-    /**
-     * Pelajari kata yang baru selesai diketik manual.
-     * Masukkan ke UserWordStore + engine → jadi kandidat T9 berikutnya.
-     */
-    private fun learnMultitapWord() {
+    /** Commit huruf yang sedang composing ke teks + catat ke buffer */
+    private fun flushMultitapChar() {
+        if (!isComposing) return
+        val chars = engine.getCharsForKey(mtKey)
+        if (chars.isNotEmpty() && mtIndex < chars.length) {
+            val committed = chars[mtIndex]
+            mtWordBuffer.append(committed)
+        }
+        onFinishComposing()
+        isComposing = false
+        mtKey = ' '; mtIndex = 0
+        if (isShift) { isShift = false; onShiftChanged(false) }
+    }
+
+    /** Update suggestion bar berdasarkan isi mtWordBuffer (prefix search) */
+    private fun updateMultitapSuggestions() {
+        val prefix = mtWordBuffer.toString()
+        if (prefix.length < 2) {
+            onSuggestionsChanged(emptyList())
+            return
+        }
+        val sugg = engine.predictFromPrefix(prefix, lastWord)
+        currentSuggestions = sugg
+        onSuggestionsChanged(sugg)
+    }
+
+    /** Pelajari kata dari buffer, reset buffer */
+    private fun learnAndResetMtBuffer() {
         val word = mtWordBuffer.toString().lowercase().trim()
         if (word.length >= 2 && word.all { it.isLetter() }) {
             userStore.recordUsage(word)
@@ -221,7 +270,10 @@ class T9InputController(
             lastWord = word
         }
         mtWordBuffer.clear()
+        onSuggestionsChanged(emptyList())
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun clearComposing() {
         if (isComposing) { onSetComposing(""); onFinishComposing(); isComposing = false }

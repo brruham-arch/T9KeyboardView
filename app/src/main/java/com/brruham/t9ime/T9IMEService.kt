@@ -13,7 +13,6 @@ class T9IMEService : InputMethodService() {
     private lateinit var engine: PredictionEngine
     private lateinit var userStore: UserWordStore
     private lateinit var controller: T9InputController
-
     private lateinit var keyboardView: T9KeyboardView
     private lateinit var suggestionBar: SuggestionBarView
     private lateinit var modeIndicator: TextView
@@ -31,17 +30,16 @@ class T9IMEService : InputMethodService() {
             engine    = engine,
             userStore = userStore,
             onSuggestionsChanged = { words -> ui { suggestionBar.setSuggestions(words) } },
-            onCommitText   = { text -> currentInputConnection?.commitText(text, 1) },
-            onSetComposing = { text -> currentInputConnection?.setComposingText(text, 1) },
+            onCommitText    = { text -> currentInputConnection?.commitText(text, 1) },
+            onSetComposing  = { text -> currentInputConnection?.setComposingText(text, 1) },
             onFinishComposing = { currentInputConnection?.finishComposingText() },
-            onDeleteChar   = { currentInputConnection?.deleteSurroundingText(1, 0) },
-            onDeleteWord   = {
-                // Hapus sampai spasi sebelumnya (satu kata)
+            onDeleteChar    = { currentInputConnection?.deleteSurroundingText(1, 0) },
+            onDeleteWord    = {
                 val ic = currentInputConnection ?: return@T9InputController
-                val before = ic.getTextBeforeCursor(50, 0)?.toString() ?: ""
+                val before = ic.getTextBeforeCursor(100, 0)?.toString() ?: ""
                 val spaceIdx = before.trimEnd().lastIndexOf(' ')
-                val deleteCount = if (spaceIdx < 0) before.length else before.length - spaceIdx - 1
-                if (deleteCount > 0) ic.deleteSurroundingText(deleteCount, 0)
+                val del = if (spaceIdx < 0) before.length else before.length - spaceIdx - 1
+                if (del > 0) ic.deleteSurroundingText(del, 0)
             },
             onEnter = {
                 val ei = currentInputEditorInfo
@@ -68,30 +66,30 @@ class T9IMEService : InputMethodService() {
         )
 
         keyboardView.keyListener = object : T9KeyboardView.KeyListener {
-            override fun onDigitKey(digit: Char)  = controller.onKeyPressed(digit)
-            override fun onDigitLong(digit: Char) = controller.onDigitLong(digit)
-            override fun onSpaceKey()             = controller.onSpacePressed()
-            override fun onEnterKey()             = controller.onEnterPressed()
-            override fun onBackspace()            = controller.onBackspace()
-            override fun onBackspaceLong()        = controller.onBackspaceLong()
-            override fun onToggleMode()           { controller.toggleMode(); keyboardView.invalidate() }
-            override fun onToggleShift()          = controller.toggleShift()
-            override fun onPaste()                = pasteFromClipboard()
+            override fun onDigitKey(digit: Char)      = controller.onKeyPressed(digit)
+            override fun onDigitLong(digit: Char)     = controller.onDigitLong(digit)
+            override fun onSpaceKey()                 = controller.onSpacePressed()
+            override fun onEnterKey()                 = controller.onEnterPressed()
+            override fun onBackspace()                = controller.onBackspace()
+            override fun onBackspaceLong()            = controller.onBackspaceLong()
+            override fun onToggleMode()               { controller.toggleMode(); keyboardView.invalidate() }
+            override fun onToggleShift()              = controller.toggleShift()
+            override fun onPaste()                    = pasteFromClipboard()
+            override fun onEmojiSelected(emoji: String) {
+                currentInputConnection?.commitText(emoji, 1)
+            }
         }
 
         suggestionBar.setOnSuggestionClickListener { word -> controller.onSuggestionSelected(word) }
-
         keyboardView.currentMode = controller.mode
         modeIndicator.text = modeLabel(controller.mode, false)
         return layout
     }
 
-    // ── Clipboard paste — unlimited karakter ─────────────────────────────────
     private fun pasteFromClipboard() {
         val cm = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return
         val clip = cm.primaryClip ?: return
         if (clip.itemCount == 0) return
-        // Ambil teks penuh tanpa batasan
         val text = clip.getItemAt(0).coerceToText(this)?.toString() ?: return
         if (text.isEmpty()) return
         currentInputConnection?.commitText(text, 1)
