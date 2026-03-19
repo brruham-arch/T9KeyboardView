@@ -6,9 +6,9 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.content.Context
 import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
+import android.app.Activity
 
-class SettingsActivity : AppCompatActivity() {
+class SettingsActivity : Activity() {
 
     private lateinit var store: SettingsStore
     private lateinit var userStore: UserWordStore
