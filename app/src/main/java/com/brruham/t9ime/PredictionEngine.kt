@@ -30,17 +30,10 @@ class PredictionEngine(
 
     companion object {
         private const val TAG = "PredictionEngine"
-<<<<<<< HEAD
         private const val BOOST = 150
         private const val BIGRAM_MULT = 200
         private const val MAX_RESULTS = 8
         private const val MAX_COLLECT = 40
-=======
-        private const val BOOST        = 150
-        private const val BIGRAM_MULT  = 200
-        private const val MAX_RESULTS  = 8
-        private const val MAX_COLLECT  = 40
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
     }
 
     init {
@@ -65,15 +58,9 @@ class PredictionEngine(
                     }
                 }
             }
-<<<<<<< HEAD
             Log.d(TAG, "Loaded $fileName")
         } catch (e: Exception) {
             Log.w(TAG, "Skip $fileName: ${e.message}")
-=======
-            Log.d(TAG, "Dict loaded")
-        } catch (e: Exception) {
-            Log.e(TAG, "Dict fail: ${e.message}")
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
         }
     }
 
@@ -97,32 +84,14 @@ class PredictionEngine(
         if (w.length > 1 && w.all { it.isLetter() }) insertWord(w, BOOST)
     }
 
-<<<<<<< HEAD
     // T9 predict — 3 layer
-=======
-    // ================= T9 PREDICT =================
-
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
     fun predict(digits: String, prevWord: String = ""): List<String> {
         if (!isReady || digits.isEmpty()) return emptyList()
         val scores = HashMap<String, Int>()
-<<<<<<< HEAD
         searchExact(root, digits, 0, StringBuilder(), scores)
         collectPrefix(digits, scores)
         if (scores.size < 4) searchFuzzy(root, digits, 0, StringBuilder(), scores, 1)
         val bigrams = if (prevWord.isNotBlank()) userStore.getBigramFollowers(prevWord) else emptyMap()
-=======
-
-        searchExact(root, digits, 0, StringBuilder(), scores)
-        collectPrefix(digits, scores)
-
-        if (scores.size < 4)
-            searchFuzzy(root, digits, 0, StringBuilder(), scores, 1)
-
-        val bigrams = if (prevWord.isNotBlank())
-            userStore.getBigramFollowers(prevWord) else emptyMap()
-
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
         return scores
             .map { (w, base) -> w to (base + userStore.getBoost(w) * BOOST + (bigrams[w] ?: 0) * BIGRAM_MULT) }
             .sortedByDescending { it.second }
@@ -144,50 +113,15 @@ class PredictionEngine(
             .filter { it.length > prefix.length }
     }
 
-<<<<<<< HEAD
-=======
-    // ================= PREFIX (MULTITAP FIX) =================
-
-    fun predictWordPrefix(prefix: String, prevWord: String = ""): List<String> {
-        if (!isReady || prefix.isEmpty()) return emptyList()
-
-        var node = root
-        for (c in prefix.lowercase()) {
-            node = node.children[c] ?: return emptyList()
-        }
-
-        val results = HashMap<String, Int>()
-        collectAll(node, StringBuilder(prefix.lowercase()), results, intArrayOf(0))
-
-        val bigrams = if (prevWord.isNotBlank())
-            userStore.getBigramFollowers(prevWord) else emptyMap()
-
-        return results
-            .map { (word, base) ->
-                val uni    = userStore.getBoost(word) * BOOST
-                val bigram = (bigrams[word] ?: 0) * BIGRAM_MULT
-                word to (base + uni + bigram)
-            }
-            .sortedByDescending { it.second }
-            .take(MAX_RESULTS)
-            .map { it.first }
-    }
-
-    // ================= CORE SEARCH =================
-
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
     private fun searchExact(node: TrieNode, digits: String, d: Int, cur: StringBuilder, res: MutableMap<String, Int>) {
         if (d == digits.length) { if (node.isEnd) res.merge(cur.toString(), node.frequency.coerceAtLeast(1), ::maxOf); return }
         for (c in T9_MAP[digits[d]] ?: return) {
             val ch = node.children[c] ?: continue
-            cur.append(c)
-            searchExact(ch, digits, d + 1, cur, res)
-            cur.deleteCharAt(cur.length - 1)
+            cur.append(c); searchExact(ch, digits, d + 1, cur, res); cur.deleteCharAt(cur.length - 1)
         }
     }
 
     private fun collectPrefix(digits: String, res: MutableMap<String, Int>) {
-<<<<<<< HEAD
         data class S(val node: TrieNode, val d: Int, val pref: String)
         val q = ArrayDeque<S>(); q.add(S(root, 0, ""))
         while (q.isNotEmpty()) {
@@ -195,30 +129,12 @@ class PredictionEngine(
             if (d == digits.length) { collectAll(node, StringBuilder(pref), res, intArrayOf(0)); continue }
             for (c in T9_MAP[digits[d]] ?: continue) {
                 val ch = node.children[c] ?: continue; q.add(S(ch, d + 1, pref + c))
-=======
-        data class S(val node: TrieNode, val d: Int, val prefix: String)
-        val q = ArrayDeque<S>()
-        q.add(S(root, 0, ""))
-
-        while (q.isNotEmpty()) {
-            val (node, d, prefix) = q.removeFirst()
-
-            if (d == digits.length) {
-                collectAll(node, StringBuilder(prefix), res, intArrayOf(0))
-                continue
-            }
-
-            for (c in T9_MAP[digits[d]] ?: continue) {
-                val ch = node.children[c] ?: continue
-                q.add(S(ch, d + 1, prefix + c))
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
             }
         }
     }
 
     private fun collectAll(node: TrieNode, cur: StringBuilder, res: MutableMap<String, Int>, cnt: IntArray) {
         if (cnt[0] >= MAX_COLLECT) return
-<<<<<<< HEAD
         if (node.isEnd) { res.merge(cur.toString(), (node.frequency * 0.6).toInt().coerceAtLeast(1), ::maxOf); cnt[0]++ }
         node.children.entries.sortedByDescending { it.value.frequency }.forEach { (c, ch) ->
             if (cnt[0] >= MAX_COLLECT) return
@@ -236,48 +152,6 @@ class PredictionEngine(
                 if (c in exact) continue
                 val ch = node.children[c] ?: continue
                 cur.append(c); searchFuzzy(ch, digits, d + 1, cur, res, err - 1); cur.deleteCharAt(cur.length - 1)
-=======
-
-        if (node.isEnd) {
-            res.merge(cur.toString(), (node.frequency * 0.6).toInt().coerceAtLeast(1), ::maxOf)
-            cnt[0]++
-        }
-
-        node.children.entries
-            .sortedByDescending { it.value.frequency }
-            .forEach { (c, ch) ->
-                if (cnt[0] >= MAX_COLLECT) return
-                cur.append(c)
-                collectAll(ch, cur, res, cnt)
-                cur.deleteCharAt(cur.length - 1)
-            }
-    }
-
-    private fun searchFuzzy(node: TrieNode, digits: String, d: Int, cur: StringBuilder, res: MutableMap<String, Int>, err: Int) {
-        if (d == digits.length) {
-            if (node.isEnd) res.merge(cur.toString(), (node.frequency * 0.3).toInt().coerceAtLeast(1), ::maxOf)
-            return
-        }
-
-        val exact = T9_MAP[digits[d]] ?: ""
-
-        for (c in exact) {
-            val ch = node.children[c] ?: continue
-            cur.append(c)
-            searchFuzzy(ch, digits, d + 1, cur, res, err)
-            cur.deleteCharAt(cur.length - 1)
-        }
-
-        if (err > 0) {
-            for (adj in ADJACENT[digits[d]] ?: "") {
-                for (c in T9_MAP[adj] ?: "") {
-                    if (c in exact) continue
-                    val ch = node.children[c] ?: continue
-                    cur.append(c)
-                    searchFuzzy(ch, digits, d + 1, cur, res, err - 1)
-                    cur.deleteCharAt(cur.length - 1)
-                }
->>>>>>> d3d4eb2b957c2e925c33ed6a8490bd66292ee34e
             }
         }
     }
