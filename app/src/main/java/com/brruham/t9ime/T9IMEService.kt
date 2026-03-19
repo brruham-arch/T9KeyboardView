@@ -105,20 +105,49 @@ class T9IMEService : InputMethodService() {
      * oldSelStart != newSelStart → user tap/klik pindahkan cursor.
      * Reset state keyboard agar tidak ada composing hantu.
      */
+
+
+    // ── Smart delete ─────────────────────────────────────────────────────────────
+
+    private fun smartDelete() {
+        val ic = currentInputConnection ?: return
+        val selected = ic.getSelectedText(0)
+        if (!selected.isNullOrEmpty()) {
+            ic.commitText("", 1)
+        } else {
+            ic.deleteSurroundingText(1, 0)
+        }
+    }
+
+    private fun smartDeleteWord() {
+        val ic = currentInputConnection ?: return
+        val selected = ic.getSelectedText(0)
+        if (!selected.isNullOrEmpty()) {
+            ic.commitText("", 1); return
+        }
+        val before = ic.getTextBeforeCursor(200, 0)?.toString() ?: return
+        if (before.isEmpty()) return
+        var end = before.length
+        while (end > 0 && before[end - 1] == ' ') end--
+        var start = end
+        while (start > 0 && before[start - 1] != ' ') start--
+        val del = before.length - start
+        if (del > 0) ic.deleteSurroundingText(del, 0)
+    }
+
+    // ── Cursor tracking ───────────────────────────────────────────────────────
+
     override fun onUpdateSelection(
         oldSelStart: Int, oldSelEnd: Int,
         newSelStart: Int, newSelEnd: Int,
         candidatesStart: Int, candidatesEnd: Int
     ) {
         super.onUpdateSelection(oldSelStart, oldSelEnd, newSelStart, newSelEnd, candidatesStart, candidatesEnd)
-        // Kalau cursor pindah bukan karena keyboard sendiri yang commit
-        // (candidatesStart/End == -1 artinya tidak ada composing aktif dari kita)
         if (candidatesStart == -1 && candidatesEnd == -1) {
             if (::controller.isInitialized) controller.resetState()
         }
     }
 
-    /** Field baru / app baru → reset total */
     override fun onStartInputView(info: android.view.inputmethod.EditorInfo?, restarting: Boolean) {
         super.onStartInputView(info, restarting)
         if (!restarting && ::controller.isInitialized) {
